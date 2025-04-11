@@ -404,7 +404,7 @@ void simulateVotes() {
 
             // Compare decoded count with the actual count
             if (static_cast<long>(actualVoteCounts[i]) == decodedCounts[i]) {
-                cout << " (Verification: Passed" << endl;
+                cout << " (Verification: Passed)" << endl;
             } else {
                 cout << " (Verification: FAIL! Expected " << actualVoteCounts[i] << ")" << endl;
                 verification_passed = false;
