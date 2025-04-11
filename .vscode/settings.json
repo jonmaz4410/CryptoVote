@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "iostream": "cpp",
+        "ostream": "cpp",
+        "vector": "cpp",
+        "optional": "cpp",
+        "format": "cpp",
+        "system_error": "cpp"
+    }
+}

@@ -1,0 +1,40 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "cppbuild",
+            "label": "Build Paillier with GMP (UCRT64)",
+            "command": "g++",
+            "args": [
+                "-fdiagnostics-color=always",
+                "-g",
+                // --- Include Paths ---
+                "-I${workspaceFolder}/include",    // Project include path
+                "-IC:/msys64/ucrt64/include",      // GMP include path
+                // --- Input Source Files ---
+                "${workspaceFolder}/main.cpp",       // *** ADD main.cpp ***
+                "${workspaceFolder}/src/paillier.cpp", // *** UPDATED path for paillier.cpp ***
+                "${workspaceFolder}/src/des.c",        // Path for des.c
+                // --- Output ---
+                "-o",
+                "${workspaceFolder}/cryptovote.exe", // *** Optional: Rename output executable ***
+                // --- Library Paths ---
+                "-LC:/msys64/ucrt64/lib",
+                // --- Libraries to Link ---
+                "-lgmpxx",
+                "-lgmp"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Compiles main, paillier, and des sources with GMP and project includes/libraries using g++ (UCRT64)." // Updated detail
+        }
+    ]
+}
