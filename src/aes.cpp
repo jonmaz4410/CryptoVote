@@ -1,7 +1,88 @@
-// ==========================================================================
-// aes.cpp - Streamlined AES-256 CBC Implementation with Zero Padding
-// ==========================================================================
+/*
+==========================================================================
+AES-256 CBC Zero Padding
+==========================================================================
 
+--------------------------------------------------------------------------
+I. Key Expansion (expandKey Function)
+--------------------------------------------------------------------------
+Goal: Generate 15 round keys (128-bit each) from the original 256-bit key.
+
+1.  Input: 256-bit (32-byte) original key.
+2.  Initialize: Create an array `w` to hold 60 words (4-byte chunks).
+3.  Seed: Copy the original 32-byte key into the first 8 words of `w` (w[0] to w[7]).
+4.  Generate Remaining Words (w[8] to w[59]):
+    a. Loop from i = 8 to 59.
+    b. Get previous word: `temp = w[i-1]`.
+    c. If `i` is a multiple of 8:
+        - Apply `RotWord` (cyclic byte shift left) to `temp`.
+        - Apply `SubWord` (S-Box substitution) to each byte of `temp`.
+        - XOR the first byte of `temp` with `RCON[i/8]` (round constant).
+    d. Else if `i % 8 == 4`
+        - Apply `SubWord` (S-Box substitution) to each byte of `temp`.
+    e. Calculate new word: `w[i] = w[i-8] ^ temp`.
+5.  Group the 60 words from `w` into 15 `Block`s (16 bytes each).
+6.  Output: Vector containing the 15 round keys.
+
+--------------------------------------------------------------------------
+II. AES-256 CBC Encryption (encryptAES256 Function)
+--------------------------------------------------------------------------
+Goal: Encrypt plaintext using the key and CBC mode.
+
+1.  Input: Plaintext string, 256-bit key.
+2.  Key Expansion: Generate the 15 round keys using `expandKey`.
+3.  IV Generation: Create a random 16-byte IV.
+4.  Padding: Pad the plaintext with trailing zeros so its length is a multiple of 16 bytes.
+5.  Initialize Ciphertext: Start the output ciphertext with the IV.
+6.  Chaining: `previousBlock = IV`.
+7.  Process Blocks: For each 16-byte block of the padded plaintext:
+    a. Copy plaintext block to `currentBlock`.
+    b. XOR: `currentBlock = currentBlock ^ previousBlock`.
+    c. AES Block Encryption:
+        - `AddRoundKey` (round 0 key).
+        -  Loop rounds 1 to 13:
+           - `SubBytes` (S-Box).
+           - `ShiftRows`.
+           - `MixColumns`.
+           - `AddRoundKey` (key for current round).
+        - Final Round (round 14):
+           - `SubBytes`.
+           - `ShiftRows`.
+           - `AddRoundKey` (key for round 14).
+    d. Append encrypted `currentBlock` to the output ciphertext.
+    e. Update Chaining: `previousBlock = currentBlock`.
+8.  Output: Ciphertext vector (IV + encrypted blocks).
+
+--------------------------------------------------------------------------
+III. AES-256 CBC Decryption (decryptAES256 Function)
+--------------------------------------------------------------------------
+Goal: Decrypt ciphertext (encrypted using this scheme) to get the original plaintext.
+
+1.  Input: Ciphertext vector, 256-bit key.
+2.  Key Expansion: Generate the 15 round keys using `expandKey`.
+3.  Extract IV: Get the first 16 bytes from the input ciphertext as the IV.
+4.  Chaining: `previousBlock = IV`.
+5.  Initialize Plaintext: Create an empty buffer for the decrypted plaintext.
+6.  Process Blocks: For each 16-byte block of the ciphertext after the IV:
+    a. Copy ciphertext block to `currentBlock`.
+    b. Store Original Ciphertext Block: `originalCipherBlock = currentBlock`.
+    c. AES Block Decryption (on `currentBlock`):
+        - `AddRoundKey` (round 14 key).
+        -  `InvShiftRows`.
+        -  `InvSubBytes` (Inverse S-Box).
+        -  Loop rounds 13 down to 1:
+           - `AddRoundKey` (key for current round).
+           - `InvMixColumns`.
+           - `InvShiftRows`.
+           - `InvSubBytes`.
+        -  `AddRoundKey` (round 0 key).
+    d. XOR: `currentBlock = currentBlock ^ previousBlock`.
+    e. Append decrypted `currentBlock` to the plaintext buffer.
+    f. Update Chaining: `previousBlock = originalCipherBlock`.
+7.  Remove Padding: Remove any trailing zero bytes from the end of the resulting plaintext buffer.
+8.  Output: Original plaintext string.
+
+*/
 #include "aes.h"
 #include <array>
 #include <iostream>
@@ -13,14 +94,12 @@
 #include <vector>
 
 using namespace std;
-
-// Core types and constants
 using Byte = unsigned char;
 using Block = array<Byte, 16>;
 
 const size_t BLOCK_SIZE = 16;
-const size_t KEY_SIZE = 32;  // AES-256
-const int ROUNDS = 14;       // AES-256 rounds
+const size_t KEY_SIZE = 32;
+const int ROUNDS = 14;
 
 // S-Boxes and Rcon table
 const array<Byte, 256> SBOX = {
@@ -65,18 +144,41 @@ const array<Byte, 11> RCON = {
     0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36
 };
 
-// AES helper functions
+// xtime calculates x * 2 in GF(2^8)
 inline Byte xtime(Byte x) {
-    return (x << 1) ^ ((x & 0x80) ? 0x1B : 0x00);
+    Byte result = x << 1;
+    bool MSB = (x & 0x80) != 0;
+
+    // If the high bit was set, we need to XOR with 0x1B
+    // XOR performs reduction using properties of special polynomials in GF(2^8)
+    // This is equivalent to reducing modulo x^8 + x^4 + x^3 + x + 1
+    if (MSB) {
+        result = result ^ 0x1B;
+    }
+    return result;
 }
 
+// gmul calculates the product of two bytes in GF(2^8)
 inline Byte gmul(Byte a, Byte b) {
     Byte p = 0;
+
+    // Loop 8 times, once for each bit position in 'b'.
     for (int i = 0; i < 8; i++) {
-        if (b & 1) p ^= a;
-        Byte highBit = (a & 0x80);
+
+        if (b & 1) {
+            // XOR == addition in GF(2^8)
+            p ^= a;
+        }
+
+        // Now, update 'a' to be 'a * 2' using the xtime logic.
+        // This is needed for the next potential addition.
+        Byte MSB = (a & 0x80); // Check for overflow (high bit set)
         a <<= 1;
-        if (highBit) a ^= 0x1B;
+        
+        if (MSB) {
+            a ^= 0x1B;
+        }
+        // Shift 'b' right to process the next bit.
         b >>= 1;
     }
     return p;
@@ -137,7 +239,6 @@ vector<Block> expandKey(const array<Byte, KEY_SIZE>& key) {
     return roundKeys;
 }
 
-// Core AES operations
 void addRoundKey(Block& state, const Block& roundKey) {
     for (int i = 0; i < 16; i++) {
         state[i] ^= roundKey[i];
@@ -174,7 +275,7 @@ void shiftRows(Block& state) {
     state[6] = state[14];
     state[14] = temp;
     
-    // Row 3: shift left by 3 (or right by 1)
+    // Row 3: shift left by 3
     temp = state[3];
     state[3] = state[15];
     state[15] = state[11];
@@ -200,7 +301,7 @@ void invShiftRows(Block& state) {
     state[6] = state[14];
     state[14] = temp;
     
-    // Row 3: shift right by 3 (or left by 1)
+    // Row 3: shift right by 3
     temp = state[7];
     state[7] = state[11];
     state[11] = state[15];
@@ -327,19 +428,14 @@ void removePadding(vector<Byte>& data) {
     }
 }
 
-// Public interface for CBC mode
 vector<Byte> encryptAES256(const string& plaintext, const array<Byte, KEY_SIZE>& key) {
     auto roundKeys = expandKey(key);
     Block iv = generateRandomIV();
     vector<Byte> paddedText = padData(plaintext);
-    
-    // Prepare ciphertext with IV at the beginning
     vector<Byte> ciphertext(iv.begin(), iv.end());
     ciphertext.reserve(iv.size() + paddedText.size());
-    
     Block previousBlock = iv;
     
-    // Process each block
     for (size_t i = 0; i < paddedText.size(); i += BLOCK_SIZE) {
         Block currentBlock;
         copy(paddedText.begin() + i, paddedText.begin() + i + BLOCK_SIZE, currentBlock.begin());
@@ -363,7 +459,7 @@ string decryptAES256(const vector<Byte>& ciphertext, const array<Byte, KEY_SIZE>
         throw invalid_argument("Invalid ciphertext size");
     }
     
-    auto roundKeys = expandKey(key);
+    vector<Block> roundKeys = expandKey(key);
     
     // Extract IV (first block)
     Block iv;
@@ -404,45 +500,3 @@ void printBlock(const Block& block, const string& label = "Block") {
     }
     cout << dec;
 }
-
-// // Main function for testing
-// int main() {
-//     cout << "--- AES Refactored Test (AES-256 CBC Zero Padding - Single File) ---" << endl;
-
-//     string keyHex = "603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4";
-//     array<Byte, KEY_SIZE> key;
-    
-//     try {
-//         key = hexStringToKey(keyHex);
-//         cout << "Key parsed successfully." << endl;
-//     }
-//     catch (const exception& e) {
-//         cerr << "Error parsing key: " << e.what() << endl;
-//         return 1;
-//     }
-
-//     string plaintext = "This is a test message for AES-256 CBC encryption.";
-//     cout << "Plaintext: \"" << plaintext << "\"" << endl;
-
-//     try {
-//         vector<Byte> ciphertext = encryptAES256(plaintext, key);
-//         cout << "Ciphertext (Hex, IV prepended): " << bytesToHexString(ciphertext) << endl;
-//         cout << "Ciphertext size (IV + data): " << ciphertext.size() << endl;
-
-//         string decryptedText = decryptAES256(ciphertext, key);
-//         cout << "Decrypted: \"" << decryptedText << "\"" << endl;
-
-//         if (plaintext == decryptedText) {
-//             cout << "SUCCESS: Decryption matches original plaintext." << endl;
-//         }
-//         else {
-//             cout << "FAILURE: Decryption does not match." << endl;
-//         }
-
-//     } catch (const exception& e) {
-//         cerr << "Error during encrypt/decrypt test: " << e.what() << endl;
-//         return 1;
-//     }
-
-//     return 0;
-// }

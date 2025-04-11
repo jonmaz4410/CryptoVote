@@ -3,21 +3,21 @@
     "tasks": [
         {
             "type": "cppbuild",
-            "label": "Build Paillier with GMP (UCRT64)",
+            "label": "Build with GMP (UCRT64)",
             "command": "g++",
             "args": [
                 "-fdiagnostics-color=always",
                 "-g",
                 // --- Include Paths ---
-                "-I${workspaceFolder}/include",    // Project include path
-                "-IC:/msys64/ucrt64/include",      // GMP include path
+                "-I${workspaceFolder}/include",
+                "-IC:/msys64/ucrt64/include",
                 // --- Input Source Files ---
-                "${workspaceFolder}/main.cpp",       // *** ADD main.cpp ***
-                "${workspaceFolder}/src/paillier.cpp", // *** UPDATED path for paillier.cpp ***
-                "${workspaceFolder}/src/aes.cpp",        // Path for aes.c
+                "${workspaceFolder}/main.cpp",       
+                "${workspaceFolder}/src/paillier.cpp", 
+                "${workspaceFolder}/src/aes.cpp",
                 // --- Output ---
                 "-o",
-                "${workspaceFolder}/cryptovote.exe", // *** Optional: Rename output executable ***
+                "${workspaceFolder}/cryptovote.exe",
                 // --- Library Paths ---
                 "-LC:/msys64/ucrt64/lib",
                 // --- Libraries to Link ---
@@ -34,7 +34,7 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "detail": "Compiles main, paillier, and aes sources with GMP and project incluaes/libraries using g++ (UCRT64)." // Updated detail
+            "detail": "Compiles main, Paillier, and AES sources with GMP and project includes/libraries using g++ (UCRT64)."
         }
     ]
 }

@@ -17,6 +17,12 @@ using namespace std;
 
 /**
  * @brief Holds the public and private key components for Paillier.
+ *
+ * @param n The modulus (p * q).
+ * @param nSquared n * n.
+ * @param g The generator (often n + 1).
+ * @param lambda Carmichael function lambda(n) = lcm(p-1, q-1).
+ * @param mu Private key component mu = (L(g^lambda mod n^2))^-1 mod n.
  */
 struct PaillierKeys {
     mpz_class n;        // Modulus (p * q)
@@ -28,10 +34,13 @@ struct PaillierKeys {
 
 /**
  * @brief Represents an encrypted ballot containing PII and vote weight.
+ *
+ * @param aesEncryptedPII IV + AES Ciphertext of "FirstName LastName".
+ * @param encWeight Paillier Ciphertext of encoded vote weight (M^i).
  */
 struct EncryptedBallot {
-    vector<unsigned char> aesEncryptedPII;                // IV + DES Ciphertext of "FirstName LastName"
-    mpz_class encWeight;  // Paillier Ciphertext of encoded vote weight (M^i)
+    vector<unsigned char> aesEncryptedPII;      // IV + DES Ciphertext of "FirstName LastName"
+    mpz_class encWeight;                        // Paillier Ciphertext of encoded vote weight (M^i)
 };
 
 /*
@@ -132,16 +141,6 @@ mpz_class decVote(const mpz_class& ciphertext, const PaillierKeys& keys);
 mpz_class addVotes(const mpz_class& c1, const mpz_class& c2, const PaillierKeys& keys);
 
 /**
- * @brief Runs the main voting simulation logic.
- * @details Gets parameters, generates keys, simulates votes (encrypting PII with DES, weights with Paillier),
- * homomorphically tallies votes, decrypts the final tally, decodes counts, verifies,
- * and optionally prompts to decrypt a specific ballot.
- * @param None.
- * @return Void.
- */
-void simulateVotes();
-
-/**
  * @brief Prompts user for a ballot index and decrypts/displays the PII and vote weight.
  * @details Handles user input for the index and calls decryption functions.
  * @param allBallots The vector containing all encrypted ballots.
@@ -153,14 +152,29 @@ void decryptBallot(const vector<EncryptedBallot>& allBallots,
     const PaillierKeys& paillierKeys,
     const array<unsigned char, 32>& aes_key);
 
+
+/**
+ * @brief Generates a random 32-byte AES key.
+ * @param rand_state An initialized GMP random state object.
+ * @return A 32-byte array representing the AES key.
+ */
 array<unsigned char, 32> genKeyAES(gmp_randstate_t& rand_state);
 
+/**
+ * @brief Prints the decrypted tally and verifies the results against the actual vote counts.
+ * @param decryptedTally The final decrypted tally.
+ * @param numCandidates The number of candidates.
+ * @param max_voters The maximum number of voters.
+ * @param actualVoteCounts The vector of actual vote counts for each candidate.
+ * @param num_votes The total number of votes simulated.
+ * @return True if the results were printed and verified successfully, false otherwise.
+ */
 bool printResults(
     const mpz_class& decryptedTally,
     int numCandidates,
     int max_voters,
     const std::vector<int>& actualVoteCounts,
-    int num_votes_to_simulate);
+    int num_votes);
 
 
 #endif // PAILLIER_H

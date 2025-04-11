@@ -5,27 +5,22 @@
 #include <string>
 #include <stdexcept>
 #include <gmpxx.h>
-#include <ctime>
-#include <cstdlib>
-#include <limits> // For clearing input buffer in decrypt prompt
 
 using namespace std;
 
 int main() {
     // --- Variable Declarations ---
     int numCandidates = 0;
-    int max_voters_k = 0;
-    int num_votes_to_simulate = 0;
-    int paillierKeySize = 1024; // Paillier key size
-
-    gmp_randstate_t rand_state; // GMP random state
+    int max_voters = 0;
+    int num_votes = 0;
+    int paillierKeySize = 1024;
+    gmp_randstate_t rand_state;
     bool rand_init = false;
-
     PaillierKeys paillierKeys;
     array<unsigned char, 32> aes_key;
     vector<mpz_class> weights;
-    vector<EncryptedBallot> allBallots; // Declare here
-    vector<int> actualVoteCounts; // Declare here
+    vector<EncryptedBallot> allBallots;
+    vector<int> actualVoteCounts;
     mpz_class encryptedTally;
     mpz_class decryptedTally;
 
@@ -33,8 +28,8 @@ int main() {
         // --- User Input ---
         cout << "\n--- Paillier+AES Voting Simulation Setup ---" << endl;
         cout << "Enter the number of candidates: "; cin >> numCandidates; /* Add validation */
-        cout << "Enter the maximum expected total number of voters (k): "; cin >> max_voters_k; /* Add validation */
-        cout << "Enter the number of votes to simulate for this test run: "; cin >> num_votes_to_simulate; /* Add validation */
+        cout << "Enter the maximum expected total number of voters (k): "; cin >> max_voters; /* Add validation */
+        cout << "Enter the number of votes to simulate for this test run: "; cin >> num_votes; /* Add validation */
         cout << "----------------------------------------" << endl;
 
 
@@ -47,103 +42,98 @@ int main() {
         rand_init = true;
         cout << "Random states initialized." << endl;
 
-
         // --- Key Generation ---
         cout << "Generating Paillier keys (Size: " << paillierKeySize << " bits)..." << endl;
         paillierKeys = genKeyPaillier(paillierKeySize);
         cout << "Paillier keys generated." << endl;
-        aes_key = genKeyAES(rand_state); // Call function
+        aes_key = genKeyAES(rand_state);
 
-
-
-        
-
-
-        // --- Simulation & Encryption Loop (Now in main) ---
-        cout << "Simulating and encrypting " << num_votes_to_simulate << " votes..." << endl;
-        weights = calcWeights(numCandidates, max_voters_k); // Call function
+        // --- Simulation & Encryption ---
+        cout << "Simulating and encrypting " << num_votes << " votes..." << endl;
+        weights = calcWeights(numCandidates, max_voters); // Call function
         allBallots.clear();
-        allBallots.reserve(num_votes_to_simulate);
+        allBallots.reserve(num_votes);
         actualVoteCounts.assign(numCandidates, 0); // Initialize counts
 
-        for (int i = 0; i < num_votes_to_simulate; i++) {
+        for (int i = 0; i < num_votes; i++) {
             // Generate simulated PII
             string firstName = "FName_" + to_string(i);
             string lastName = "LName_" + to_string(i);
             string pii = firstName + " " + lastName;
 
-            // Encrypt PII using AES (Call function from aes.cpp via aes.h)
+            // Encrypt PII using AES
             vector<unsigned char> enc_pii = encryptAES256(pii, aes_key);
 
             // Simulate a random vote choice
             int voterChoice = rand() % numCandidates;
             actualVoteCounts[voterChoice]++;
 
-            // Get the corresponding plaintext weight (Call function from paillier.cpp)
+            // Get the corresponding plaintext weight
             mpz_class plaintextWeight = getVoteWeight(voterChoice, weights);
 
-            // Encrypt the weight using Paillier (Call function from paillier.cpp)
+            // Encrypt the weight using Paillier
             mpz_class enc_weight = encVote(plaintextWeight, paillierKeys, rand_state);
 
             // Store the encrypted ballot
             allBallots.push_back({enc_pii, enc_weight});
         }
-        cout << num_votes_to_simulate << " votes processed and encrypted." << endl;
+        cout << num_votes << " votes processed and encrypted." << endl;
 
-
-        // --- Tallying (Loop in main) ---
+        // --- Tallying---
         cout << "Tallying Paillier encrypted votes..." << endl;
         if (!allBallots.empty()) {
             encryptedTally = allBallots[0].encWeight;
             for (size_t i = 1; i < allBallots.size(); i++) {
-                // Call function from paillier.cpp
                 encryptedTally = addVotes(encryptedTally, allBallots[i].encWeight, paillierKeys);
             }
             cout << "Tallying complete." << endl;
-        } else {
-             cout << " No votes to tally." << endl;
         }
-
+        else {
+            cout << " No votes to tally." << endl;
+        }
 
         // --- Decryption ---
         if (!allBallots.empty()) {
              cout << "Decrypting final Paillier tally..." << endl;
-             // Call function from paillier.cpp
              decryptedTally = decVote(encryptedTally, paillierKeys);
-             cout << " Decrypted total sum (m_total): " << decryptedTally << endl;
-        } else {
+             cout << " Decrypted total sum: " << decryptedTally << endl;
+        }
+        else {
             decryptedTally = 0;
-             cout << "No votes tallied, decrypted sum is 0." << endl;
+            cout << "No votes tallied." << endl;
         }
 
 
         // --- Results & Verification ---
-        // Call function from paillier.cpp
-        bool success = printResults(decryptedTally, numCandidates, max_voters_k, actualVoteCounts, num_votes_to_simulate);
+        bool success = printResults(decryptedTally, numCandidates, max_voters, actualVoteCounts, num_votes);
+        if (success) {
+            cout << "Results verified successfully." << endl;
+        } else {
+            cout << "Results verification failed." << endl;
+        }
 
-
-        // --- Optional Individual Decryption (Prompt in main) ---
-        cout << "\n----------------------------------------" << endl;
+        // --- Individual Decryption with PII ---
         cout << "\n----------------------------------------" << endl;
         if (!allBallots.empty()) {
             char choice = 'n';
-            cout << "Do you want to decrypt a specific ballot? (y/n): ";
-            cin >> choice; // Assume y/Y/n/N input
+            cout << "Do you want to decrypt a specific ballot? (y/N): ";
+            cin >> choice; // Assume y/Y/x input
 
             if (choice == 'y' || choice == 'Y') {
-
                 decryptBallot(allBallots, paillierKeys, aes_key);
-            } else {
+            } 
+            else {
                 cout << "Skipping individual ballot decryption." << endl;
             }
-        } else {
-             cout << "No ballots were generated to decrypt." << endl;
+        }
+        else {
+            cout << "No ballots were generated to decrypt." << endl;
         }
 
 
     } catch (const exception& e) {
         cerr << "\nCritical Error in Main: " << e.what() << endl;
-        if (rand_init) { gmp_randclear(rand_state); cout << "\nGMP random state cleared due to error." << endl; }
+        cout << "Simulation aborted." << endl;
         return 1;
     }
 
