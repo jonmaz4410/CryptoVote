@@ -30,7 +30,7 @@ struct PaillierKeys {
  * @brief Represents an encrypted ballot containing PII and vote weight.
  */
 struct EncryptedBallot {
-    string desEncryptedPII;                 // IV + DES Ciphertext of "FirstName LastName"
+    vector<unsigned char> aesEncryptedPII;                // IV + DES Ciphertext of "FirstName LastName"
     mpz_class encWeight;  // Paillier Ciphertext of encoded vote weight (M^i)
 };
 
@@ -100,7 +100,7 @@ mpz_class getVoteWeight(int candidateIndex, const vector<mpz_class>& precomputed
  * @param bitSize The desired bit length for the modulus 'n'.
  * @return A PaillierKeys struct containing the generated keys.
  */
-PaillierKeys generateKeys(int bitSize);
+PaillierKeys genKeyPaillier(int bitSize);
 
 /**
  * @brief Encrypts a plaintext vote weight using the Paillier public key.
@@ -150,25 +150,17 @@ void simulateVotes();
  * @return Void.
  */
 void decryptBallot(const vector<EncryptedBallot>& allBallots,
-                   const PaillierKeys& paillierKeys,
-                   uint64_t des_key);
+    const PaillierKeys& paillierKeys,
+    const array<unsigned char, 32>& aes_key);
 
-/**
- * @brief Encrypts a string using DES CBC mode.
- * @details Converts string to blocks, applies padding, generates random IV, calls C DES function.
- * @param plaintext The string to encrypt.
- * @param key The 64-bit DES key.
- * @return A string containing the 8-byte IV prepended to the ciphertext bytes.
- */
-string encryptStringDES(const string& plaintext, uint64_t key);
+array<unsigned char, 32> genKeyAES(gmp_randstate_t& rand_state);
 
-/**
- * @brief Decrypts a string (IV + Ciphertext) using DES CBC mode.
- * @details Extracts IV, calls C DES function, removes padding.
- * @param iv_and_ciphertext A string containing the 8-byte IV prepended to the ciphertext bytes.
- * @param key The 64-bit DES key used for encryption.
- * @return The decrypted plaintext string.
- */
-string decryptStringDES(const string& iv_and_ciphertext, uint64_t key);
+bool printResults(
+    const mpz_class& decryptedTally,
+    int numCandidates,
+    int max_voters,
+    const std::vector<int>& actualVoteCounts,
+    int num_votes_to_simulate);
+
 
 #endif // PAILLIER_H

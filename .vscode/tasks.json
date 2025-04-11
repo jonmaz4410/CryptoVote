@@ -14,7 +14,7 @@
                 // --- Input Source Files ---
                 "${workspaceFolder}/main.cpp",       // *** ADD main.cpp ***
                 "${workspaceFolder}/src/paillier.cpp", // *** UPDATED path for paillier.cpp ***
-                "${workspaceFolder}/src/des.c",        // Path for des.c
+                "${workspaceFolder}/src/aes.cpp",        // Path for aes.c
                 // --- Output ---
                 "-o",
                 "${workspaceFolder}/cryptovote.exe", // *** Optional: Rename output executable ***
@@ -34,7 +34,7 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "detail": "Compiles main, paillier, and des sources with GMP and project includes/libraries using g++ (UCRT64)." // Updated detail
+            "detail": "Compiles main, paillier, and aes sources with GMP and project incluaes/libraries using g++ (UCRT64)." // Updated detail
         }
     ]
 }

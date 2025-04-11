@@ -5,7 +5,7 @@
             "name": "Debug Paillier (UCRT64)", // Name for the debug configuration
             "type": "cppdbg", // Use the C/C++ debugger
             "request": "launch", // We want to launch the program
-            "program": "${workspaceFolder}/paillier.exe", // Path to the compiled executable
+            "program": "${workspaceFolder}/cryptovote.exe", // Path to the compiled executable
             "args": [], // Any command-line arguments your program needs when run
             "stopAtEntry": false, // Set to true if you want debugger to stop at main()
             "cwd": "${workspaceFolder}", // Working directory for the running program

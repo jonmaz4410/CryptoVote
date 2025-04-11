@@ -12,8 +12,8 @@ Due Date:   4/17/2025
 ###########################################################################
 */
 
-#include "des.h"
 #include "paillier.h"
+#include "aes.h"        // For AES encryption/decryption
 //-------------------------------------------------------------
 #include <iostream>
 #include <gmpxx.h>      // For GMP C++ wrapper
@@ -23,10 +23,9 @@ Due Date:   4/17/2025
 #include <vector> 
 #include <cstring>      // For memcpy
 #include <cstdlib>      // For srand, rand
-#include <iomanip>      // For hex formatting of DES key output
+#include <iomanip>      // For hex formatting
 #include <cctype>       // For isxdigit
 #include <sstream>      // For stringstream
-#include <limits>       // Required for error clearing fallback in DES key input
 
 using namespace std;
 
@@ -97,7 +96,7 @@ mpz_class generate_prime(int bits, gmp_randstate_t& rand_state) {
 }
 
 // Generates Paillier public and private keys.
-PaillierKeys generateKeys(int bitSize) {
+PaillierKeys genKeyPaillier(int bitSize) {
 
     PaillierKeys keys;
     mpz_class p, q;
@@ -228,14 +227,15 @@ void simulateVotes() {
     int num_votes_to_simulate = 0;
     gmp_randstate_t paillier_rand_state;
     bool rand_init = false;
-    uint64_t des_key = 0; 
+    array<unsigned char, 32> aes_key;
+
     vector<EncryptedBallot> allBallots;
     vector<int> actualVoteCounts;
     PaillierKeys paillierKeys;
 
     try {
 
-        cout << "\n--- Paillier+DES Voting Simulation Setup ---" << endl;
+        cout << "\n--- Paillier+AES Voting Simulation Setup ---" << endl;
         cout << "Enter the number of candidates: ";
         cin >> numCandidates;
         cout << "Enter the maximum expected total number of voters (k): ";
@@ -247,61 +247,40 @@ void simulateVotes() {
         int keySize = 256;
 
         // --- Generate Paillier Keys
-        paillierKeys = generateKeys(keySize);
+        paillierKeys = genKeyPaillier(keySize);
         cout << "Paillier keys generated." << endl;
 
-        // --- Get DES Key from User
-        string key_hex_str;
-        cout << "\nEnter a 64-bit DES key as up to 16 hexadecimal digits (e.g., 133457799BBCDFF1): ";
-        while (true) {
+        // --- Initialize Random State for
+        cout << "\nInitializing random states..." << endl;
+        gmp_randinit_mt(paillier_rand_state);
+        srand(time(nullptr));
+        rand_init = true;
+        cout << "Random states initialized." << endl;
 
-            if (!getline(cin >> ws, key_hex_str)) {
-                 cerr << " Input error reading key." << endl;
-                 // Consider how to handle fatal input errors
-                 throw runtime_error("Failed to read DES key input.");
+        // --- Generate Random AES Key using GMP ---
+        cout << "\nGenerating random 256-bit AES key using GMP..." << endl; // No std::
+        mpz_class random_aes_key_mpz;
+        mpz_urandomb(random_aes_key_mpz.get_mpz_t(), paillier_rand_state, 256);
+        // --- Export mpz_class bytes to std::array ---
+        fill(aes_key.begin(), aes_key.end(), 0); // No std::
+        size_t bytes_exported = 0;
+
+        mpz_export(aes_key.data(), &bytes_exported, 1, sizeof(unsigned char), 0, 0, random_aes_key_mpz.get_mpz_t());
+
+        // --- Optional: Print the generated key ---
+        char* hex_key_str = mpz_get_str(nullptr, 16, random_aes_key_mpz.get_mpz_t());
+        cout << "Generated AES Key (Hex): " << (hex_key_str ? hex_key_str : "N/A") << endl; // No std::
+        if (hex_key_str) {
+            string full_hex_key = hex_key_str; // No std::
+            size_t len = full_hex_key.length();
+            if (len < 64) {
+                full_hex_key.insert(0, 64 - len, '0');
             }
-
-            // Validate length
-            if (key_hex_str.length() > 16) {
-                 cerr << " Input too long. Please enter up to 16 hex digits." << endl;
-                 cout << "Enter up to 16 hex digits: ";
-                 continue;
-            }
-             // Validate hex
-             bool valid_hex = true;
-             if (key_hex_str.empty()){
-                 valid_hex = false;
-             } else {
-                 for(char c : key_hex_str) {
-                     if (!isxdigit(c)) {
-                         valid_hex = false;
-                         break;
-                     }
-                 }
-             }
-
-             if (!valid_hex) {
-                 cerr << " Invalid characters or empty input. Please use 0-9, a-f, A-F." << endl;
-                 cout << "Enter up to 16 hex digits: ";
-                 continue;
-             }
-
-            // Attempt to parse hex string
-            stringstream ss;
-            ss << hex << key_hex_str;
-            ss >> des_key;
-
-            // Check if parsing succeeded
-            if (!ss.fail() && ss.peek() == EOF) {
-                 cout << "Using DES key: 0x"
-                      << hex << setfill('0') << setw(16) << des_key << dec
-                      << endl;
-                 break;
-            } else {
-                cerr << " Invalid hex format or unexpected characters." << endl;
-                cout << "Enter up to 16 hex digits: ";
-            }
+            cout << "Full 256-bit Key (Hex): " << full_hex_key << endl; // No std::
+            free(hex_key_str);
         }
+        cout << " (GMP exported " << bytes_exported << " bytes for the key)" << endl; // No std::
+        cout << "----------------------------------------" << endl; // No std::
 
         // Calculate weights for encoding
         cout << "\nCalculating weights..." << endl;
@@ -313,14 +292,9 @@ void simulateVotes() {
         mpz_class M = mpz_class(max_voters_k) + 1;
         cout << "Paillier weights calculated (Using M=" << M << ")" << endl;
 
-        // --- Initialize Random State for Paillier
-        cout << "\nInitializing random states..." << endl;
-        gmp_randinit_mt(paillier_rand_state);
-        srand(time(nullptr));
-        rand_init = true;
-        cout << "Random states initialized." << endl;
 
-        // --- Simulate Votes, Encode, Encrypt (Paillier + DES)
+
+        // --- Simulate Votes, Encode, Encrypt (Paillier + AES)
         cout << "Simulating and encrypting " << num_votes_to_simulate << " votes..." << endl;
         allBallots.clear(); // Ensure vector starts empty
         allBallots.reserve(num_votes_to_simulate);
@@ -333,8 +307,9 @@ void simulateVotes() {
             string lastName = "LName_" + to_string(i);
             string pii = firstName + " " + lastName;
 
-            // Encrypt PII using DES
-            string enc_pii = encryptStringDES(pii, des_key);
+            // Encrypt PII using AES
+            vector<unsigned char> enc_pii = encryptAES256(pii, aes_key); // No std:: needed here
+
 
             // Simulate a random vote choice
             int voterChoice = rand() % numCandidates;
@@ -440,7 +415,7 @@ void simulateVotes() {
             }
 
             if (choice == 'y' || choice == 'Y') {
-                decryptBallot(allBallots, paillierKeys, des_key);
+                decryptBallot(allBallots, paillierKeys, aes_key);
             } else {
                 cout << "Skipping individual ballot decryption." << endl;
             }
@@ -462,113 +437,10 @@ void simulateVotes() {
 
 }
 
-// Encrypts a std::string using DES CBC mode from the C implementation.
-string encryptStringDES(const string& plaintext, uint64_t key) {
-
-    // Generate random IV
-    uint64_t iv = 0;
-    unsigned char* iv_bytes = reinterpret_cast<unsigned char*>(&iv);
-    for (int i = 0; i < 8; ++i) {
-        iv_bytes[i] = static_cast<unsigned char>(rand() % 256);
-    }
-
-    // Convert plaintext to byte vector
-    vector<unsigned char> byte_vector(plaintext.begin(), plaintext.end());
-    size_t original_size = byte_vector.size();
-
-    // Apply Zero Padding to make the data a multiple of the block size
-    const int BLOCK_SIZE = 8;
-    // Calculate number of blocks needed, ensuring at least one block for empty input
-    size_t num_blocks_calc = (original_size == 0) ? 1 : (original_size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    size_t padded_size = num_blocks_calc * BLOCK_SIZE;
-
-    // Resize vector, filling new elements with 0
-    byte_vector.resize(padded_size, '\0');
-
-    int num_blocks = padded_size / BLOCK_SIZE;
-    vector<uint64_t> blocks(num_blocks);
-    if (padded_size > 0) {
-        memcpy(blocks.data(), byte_vector.data(), padded_size);
-    }
-
-    // Call the C DES encryption function (defined in des.c/des.h)
-    if (num_blocks > 0) {
-        des_encrypt_cbc(blocks.data(), num_blocks, key, iv);
-    }
-
-    // Combine the generated IV and the resulting Ciphertext for output
-    string result = "";
-    const size_t IV_SIZE = 8;
-    result.reserve(IV_SIZE + padded_size); // Pre-allocate space for efficiency
-
-    // Prepend the 8-byte IV to the result string
-    const char* iv_cbytes = reinterpret_cast<const char*>(&iv);
-    result.append(iv_cbytes, IV_SIZE);
-
-    // Append the encrypted blocks to the result string
-    if (num_blocks > 0) {
-        const char* ciphertext_bytes = reinterpret_cast<const char*>(blocks.data());
-        result.append(ciphertext_bytes, padded_size);
-    }
-
-    return result; // Return "IV + Ciphertext"
-}
-
-// Decrypts a string (IV + Ciphertext) using DES CBC mode
-string decryptStringDES(const string& iv_and_ciphertext, uint64_t key) {
-    const int BLOCK_SIZE = 8;
-    const size_t IV_SIZE = 8;
-
-    // Validate input length: ciphertext part must be multiple of block size
-    size_t ciphertext_size = iv_and_ciphertext.length() - IV_SIZE;
-    if (ciphertext_size % BLOCK_SIZE != 0) {
-        throw invalid_argument("decryptStringDES: Ciphertext length not a multiple of block size.");
-    }
-
-    // Extract the 8-byte IV from the beginning of the input string
-    uint64_t iv = 0;
-    memcpy(&iv, iv_and_ciphertext.data(), IV_SIZE);
-    int num_blocks = ciphertext_size / BLOCK_SIZE;
-    vector<uint64_t> blocks(num_blocks);
-
-    // Copy the ciphertext part (after the IV) into the block buffer
-    if (num_blocks > 0) {
-        memcpy(blocks.data(), iv_and_ciphertext.data() + IV_SIZE, ciphertext_size);
-    }
-
-    // Decrypt
-    if (num_blocks > 0) {
-         des_decrypt_cbc(blocks.data(), num_blocks, key, iv);
-    }
-
-    // Convert decrypted blocks back to a byte vector
-    vector<unsigned char> decrypted_bytes(ciphertext_size);
-    if (num_blocks > 0) {
-        memcpy(decrypted_bytes.data(), blocks.data(), ciphertext_size);
-    }
-
-    // Attempt to Remove Zero Padding
-    // Find the last non-null character, assuming nulls were only used for padding.
-    size_t actual_size = 0;
-    for (size_t i = decrypted_bytes.size(); i > 0; --i) {
-        if (decrypted_bytes[i - 1] != '\0') {
-            actual_size = i; // Mark the end of the actual data
-            break;
-        }
-    }
-    // Resize the vector to remove trailing padding bytes
-    decrypted_bytes.resize(actual_size);
-
-    // Convert the unpadded byte vector back to a string
-    string plaintext(decrypted_bytes.begin(), decrypted_bytes.end());
-
-    return plaintext;
-}
-
 // Prompts user for a ballot index and decrypts/displays the PII and vote weight.
 void decryptBallot(const vector<EncryptedBallot>& allBallots,
-                   const PaillierKeys& paillierKeys,
-                   uint64_t des_key) {
+    const PaillierKeys& paillierKeys,
+    const array<unsigned char, 32>& aes_key) {
 
     long ballot_index = -1; // Variable to store user's chosen index
     long max_index = static_cast<long>(allBallots.size()) - 1;
@@ -581,7 +453,8 @@ void decryptBallot(const vector<EncryptedBallot>& allBallots,
 
     // Attempt to decrypt PII
     try {
-        string decrypted_pii = decryptStringDES(selectedBallot.desEncryptedPII, des_key);
+        string decrypted_pii = decryptAES256(selectedBallot.aesEncryptedPII, aes_key);;
+
         cout << " Decrypted PII: \"" << decrypted_pii << "\"" << endl;
     } catch (const std::exception& e) {
         cerr << " Error decrypting PII: " << e.what() << endl;
@@ -595,4 +468,110 @@ void decryptBallot(const vector<EncryptedBallot>& allBallots,
          cerr << " Error decrypting vote weight: " << e.what() << endl;
     }
     cout << "------------------------------" << endl;
+}
+
+array<unsigned char, 32> genKeyAES(gmp_randstate_t& rand_state) {
+    array<unsigned char, 32> aes_key;
+    cout << "\nGenerating random 256-bit AES key using GMP..." << endl;
+    mpz_class random_aes_key_mpz;
+    // Generate 256 random bits using the provided random state
+    mpz_urandomb(random_aes_key_mpz.get_mpz_t(), rand_state, 256);
+
+    // --- Export mpz_class bytes to std::array ---
+    fill(aes_key.begin(), aes_key.end(), 0); // Initialize the array
+    size_t bytes_exported = 0;
+    // Export the bits into the byte array
+    mpz_export(aes_key.data(),        // Pointer to the output array
+               &bytes_exported,       // Pointer to store the number of bytes written
+               1,                     // Order (most significant byte first)
+               sizeof(unsigned char), // Size of each element in the array
+               0,                     // Endianness (0 for native)
+               0,                     // Nails (0)
+               random_aes_key_mpz.get_mpz_t()); // GMP integer to export
+
+    // --- Optional: Print the generated key ---
+    char* hex_key_str = mpz_get_str(nullptr, 16, random_aes_key_mpz.get_mpz_t());
+    cout << "Generated AES Key (Hex): " << (hex_key_str ? hex_key_str : "N/A") << endl;
+    if (hex_key_str) {
+        string full_hex_key = hex_key_str;
+        size_t len = full_hex_key.length();
+        // Pad with leading zeros if necessary for display
+        if (len < 64) {
+            full_hex_key.insert(0, 64 - len, '0');
+        }
+        cout << "Full 256-bit Key (Hex): " << full_hex_key << endl;
+        // Free the string allocated by mpz_get_str
+        // Use the correct free function depending on how GMP was configured/linked
+        // Typically it's free() if using standard C library allocation
+        free(hex_key_str);
+    }
+    cout << " (GMP exported " << bytes_exported << " bytes for the key)" << endl;
+    cout << "----------------------------------------" << endl;
+
+    return aes_key; // Return the generated key
+}
+
+bool printResults(
+    const mpz_class& decryptedTally,
+    int numCandidates,
+    int max_voters, // This is k
+    const vector<int>& actualVoteCounts,
+    int num_votes_to_simulate)
+{
+    // Calculate M = k + 1
+    mpz_class M = mpz_class(max_voters) + 1;
+    cout << "Decoding Paillier results (using M = " << M << ")..." << endl;
+    vector<long> decodedCounts(numCandidates); // Use long to store decoded counts
+    mpz_class temp_total = decryptedTally; // Copy to modify
+
+    // Loop through each candidate to extract their count via modulo M
+    for (int i = 0; i < numCandidates; i++) {
+        mpz_class remainder = temp_total % M;
+        // Use get_si() assuming counts fit in signed long; check for overflow if necessary
+        decodedCounts[i] = remainder.get_si();
+        // Integer division to prepare for the next candidate's count
+        temp_total = temp_total / M;
+    }
+
+    // --- Verify & Print Results ---
+    cout << "\n--- Simulation Results ---" << endl;
+    bool verification_passed = true;
+    long total_decoded_votes = 0;
+
+    // Loop through decoded counts and compare with actual simulated counts
+    for (int i = 0; i < numCandidates; ++i) {
+        total_decoded_votes += decodedCounts[i];
+        cout << " Candidate " << i << ": " << decodedCounts[i] << " votes";
+
+        // Check if actual counts are available and indices match
+        if (actualVoteCounts.empty() || i >= actualVoteCounts.size()) {
+             cout << " (Verification: Error - Actual counts unavailable or index out of bounds)" << endl;
+             verification_passed = false;
+        } else if (static_cast<long>(actualVoteCounts[i]) == decodedCounts[i]) {
+            cout << " (Verification: Passed)" << endl;
+        } else {
+            // Counts don't match
+            cout << " (Verification: FAIL! Expected " << actualVoteCounts[i] << ")" << endl;
+            verification_passed = false;
+        }
+    }
+
+    // Verify total decoded vote count against the number simulated
+    cout << " Total votes decoded: " << total_decoded_votes << endl;
+    // Avoid warning/failure if 0 votes were intentionally simulated
+    if (total_decoded_votes != num_votes_to_simulate && num_votes_to_simulate > 0){
+        // Use cerr for warnings/errors
+        cerr << " WARNING: Total decoded votes (" << total_decoded_votes
+             << ") does not match number of simulated votes (" << num_votes_to_simulate << ")!" << endl;
+        verification_passed = false; // This mismatch indicates a potential issue
+    }
+
+    // Print final verification status
+    if (verification_passed) {
+        cout << "\n SUCCESS: Paillier tally simulation verified." << endl;
+    } else {
+        cout << "\n FAILED: Discrepancy found in Paillier tally simulation." << endl;
+    }
+
+    return verification_passed; // Return the status
 }
