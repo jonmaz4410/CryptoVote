@@ -1,0 +1,19 @@
+# Compiled executable
+cryptovote
+cryptovote.exe # If compiling on Windows
+
+# Object files
+*.o
+*.obj
+
+# Editor/IDE specific files (examples)
+.vscode/
+*.suo
+*.user
+*.sln.docstates
+
+# OS specific files
+.DS_Store # macOS
+Thumbs.db # Windows
+
+# Add any other build artifacts or temporary files specific to your workflow
