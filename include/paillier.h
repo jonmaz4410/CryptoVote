@@ -8,6 +8,7 @@
 #include <cstdint> 
 
 using namespace std;
+using Byte = unsigned char;
 
 /*
 ###########################################################################
@@ -39,7 +40,7 @@ struct PaillierKeys {
  * @param encWeight Paillier Ciphertext of encoded vote weight (M^i).
  */
 struct EncryptedBallot {
-    vector<unsigned char> aesEncryptedPII;      // IV + DES Ciphertext of "FirstName LastName"
+    vector<Byte> aesEncryptedPII;      // IV + DES Ciphertext of "FirstName LastName"
     mpz_class encWeight;                        // Paillier Ciphertext of encoded vote weight (M^i)
 };
 
@@ -150,7 +151,7 @@ mpz_class addVotes(const mpz_class& c1, const mpz_class& c2, const PaillierKeys&
  */
 void decryptBallot(const vector<EncryptedBallot>& allBallots,
     const PaillierKeys& paillierKeys,
-    const array<unsigned char, 32>& aes_key);
+    const array<Byte, 32>& aes_key);
 
 
 /**
@@ -158,7 +159,7 @@ void decryptBallot(const vector<EncryptedBallot>& allBallots,
  * @param rand_state An initialized GMP random state object.
  * @return A 32-byte array representing the AES key.
  */
-array<unsigned char, 32> genKeyAES(gmp_randstate_t& rand_state);
+array<Byte, 32> genKeyAES(gmp_randstate_t& rand_state);
 
 /**
  * @brief Prints the decrypted tally and verifies the results against the actual vote counts.
