@@ -7,6 +7,7 @@
 #include <gmpxx.h>
 
 using namespace std;
+using Byte = unsigned char;
 
 int main() {
     // --- Variable Declarations ---
@@ -17,7 +18,7 @@ int main() {
     gmp_randstate_t rand_state;
     bool rand_init = false;
     PaillierKeys paillierKeys;
-    array<unsigned char, 32> aes_key;
+    array<Byte, 32> aes_key;
     vector<mpz_class> weights;
     vector<EncryptedBallot> allBallots;
     vector<int> actualVoteCounts;
@@ -62,7 +63,7 @@ int main() {
             string pii = firstName + " " + lastName;
 
             // Encrypt PII using AES
-            vector<unsigned char> enc_pii = encryptAES256(pii, aes_key);
+            vector<Byte> enc_pii = encryptAES256(pii, aes_key);
 
             // Simulate a random vote choice
             int voterChoice = rand() % numCandidates;
@@ -119,12 +120,11 @@ int main() {
             cout << "Do you want to decrypt a specific ballot? (y/N): ";
             cin >> choice; // Assume y/Y/x input
 
-            if (choice == 'y' || choice == 'Y') {
+            while (choice == 'y' || choice == 'Y') {
                 decryptBallot(allBallots, paillierKeys, aes_key);
+                cout << "Would you like to decrypt another ballot? (y/N): ";
+                cin >> choice; 
             } 
-            else {
-                cout << "Skipping individual ballot decryption." << endl;
-            }
         }
         else {
             cout << "No ballots were generated to decrypt." << endl;
