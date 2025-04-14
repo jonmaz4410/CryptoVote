@@ -16,7 +16,6 @@ export default function FullResultsTable({ tallyData, numVotes }) {
 
   const getCandidateFields = () => {
     const lines = tallyData?.rawOutput?.split('\n') || [];
-
     const weights = [];
     const votes = [];
 
@@ -34,10 +33,10 @@ export default function FullResultsTable({ tallyData, numVotes }) {
     return { weights, votes };
   };
 
-  const decodeVoteWeight = (encodedWeightStr, M, numCandidates) => {
+  const decodeVoteWeight = (weightBigInt, M, numCandidates) => {
     const decoded = [];
-    let weight = BigInt(encodedWeightStr);
     const base = BigInt(M);
+    let weight = BigInt(weightBigInt);
 
     for (let i = 0; i < numCandidates; i++) {
       const count = weight % base;
@@ -50,8 +49,9 @@ export default function FullResultsTable({ tallyData, numVotes }) {
 
   const handleDecrypt = async () => {
     setDecryptLoading(true);
+    const ballotIndex = index; // snapshot before reset
     try {
-      const res = await axios.post('http://localhost:3001/decrypt', { index });
+      const res = await axios.post('http://localhost:3001/decrypt', { index: ballotIndex });
 
       const piiLine = res.data.output.split('\n').find(line => line.includes('Decrypted PII:'));
       const weightLine = res.data.output.split('\n').find(line => line.includes('Decrypted Plaintext Vote Weight'));
@@ -62,11 +62,18 @@ export default function FullResultsTable({ tallyData, numVotes }) {
       const numCandidates = parseInt(extractField('Number of Candidates'));
       const maxVoters = parseInt(extractField('Max Expected Voters (k)'));
       const M = maxVoters + 1;
-      const decodedVotes = decodeVoteWeight(rawWeight, M, numCandidates);
 
-      setDecryptedBallots([
-        ...decryptedBallots,
-        { index, pii, rawWeight, decodedVotes },
+      let decodedVotes = [];
+      try {
+        const weightBigInt = BigInt(rawWeight);
+        decodedVotes = decodeVoteWeight(weightBigInt, M, numCandidates);
+      } catch (err) {
+        console.error('❌ Failed decoding vote weight:', rawWeight, err);
+      }
+
+      setDecryptedBallots(prev => [
+        ...prev,
+        { index: ballotIndex, pii, rawWeight, decodedVotes },
       ]);
 
       setIndex('');
@@ -180,9 +187,17 @@ export default function FullResultsTable({ tallyData, numVotes }) {
                     <td className="px-6 py-4">{ballot.pii}</td>
                     <td className="px-6 py-4">{ballot.rawWeight}</td>
                     <td className="px-6 py-4">
-                      {ballot.decodedVotes.map((vote, idx) => (
-                        <div key={idx}>Candidate {idx}: {vote} vote{vote !== 1 ? 's' : ''}</div>
-                      ))}
+                      {ballot.decodedVotes
+                        .map((vote, idx) => ({ idx, vote }))
+                        .filter(({ vote }) => vote > 0)
+                        .map(({ idx, vote }) => (
+                          <div key={idx}>
+                            Candidate {idx}: {vote} vote{vote !== 1 ? 's' : ''}
+                          </div>
+                        ))}
+                      {ballot.decodedVotes.every(v => v === 0) && (
+                        <div className="text-gray-400 italic">No votes cast</div>
+                      )}
                     </td>
                   </tr>
                 ))}
