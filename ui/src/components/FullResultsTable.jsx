@@ -9,27 +9,6 @@ export default function FullResultsTable({ tallyData, numVotes }) {
   const [showAES, setShowAES] = useState(false);
   const [decryptLoading, setDecryptLoading] = useState(false);
 
-  const handleDecrypt = async () => {
-    setDecryptLoading(true);
-    try {
-      const res = await axios.post('http://localhost:3001/decrypt', { index });
-
-      const piiLine = res.data.output.split('\n').find(line => line.includes('Decrypted PII:'));
-      const weightLine = res.data.output.split('\n').find(line => line.includes('Decrypted Plaintext Vote Weight'));
-
-      const pii = piiLine?.split(':')[1]?.trim();
-      const weight = weightLine?.split(':')[1]?.trim();
-
-      setDecryptedBallots([...decryptedBallots, { index, pii, weight }]);
-      setIndex('');
-    } catch (err) {
-      alert('Failed to decrypt ballot');
-      console.error(err);
-    } finally {
-      setDecryptLoading(false);
-    }
-  };
-
   const extractField = (label) => {
     const line = tallyData?.rawOutput?.split('\n').find(line => line.includes(label));
     return line?.split(':')[1]?.trim() || '';
@@ -55,11 +34,56 @@ export default function FullResultsTable({ tallyData, numVotes }) {
     return { weights, votes };
   };
 
+  const decodeVoteWeight = (encodedWeightStr, M, numCandidates) => {
+    const decoded = [];
+    let weight = BigInt(encodedWeightStr);
+    const base = BigInt(M);
+
+    for (let i = 0; i < numCandidates; i++) {
+      const count = weight % base;
+      decoded.push(Number(count));
+      weight = weight / base;
+    }
+
+    return decoded;
+  };
+
+  const handleDecrypt = async () => {
+    setDecryptLoading(true);
+    try {
+      const res = await axios.post('http://localhost:3001/decrypt', { index });
+
+      const piiLine = res.data.output.split('\n').find(line => line.includes('Decrypted PII:'));
+      const weightLine = res.data.output.split('\n').find(line => line.includes('Decrypted Plaintext Vote Weight'));
+
+      const pii = piiLine?.split(':')[1]?.trim().replace(/"/g, '');
+      const rawWeight = weightLine?.split(':')[1]?.trim();
+
+      const numCandidates = parseInt(extractField('Number of Candidates'));
+      const maxVoters = parseInt(extractField('Max Expected Voters (k)'));
+      const M = maxVoters + 1;
+      const decodedVotes = decodeVoteWeight(rawWeight, M, numCandidates);
+
+      setDecryptedBallots([
+        ...decryptedBallots,
+        { index, pii, rawWeight, decodedVotes },
+      ]);
+
+      setIndex('');
+    } catch (err) {
+      alert('Failed to decrypt ballot');
+      console.error(err);
+    } finally {
+      setDecryptLoading(false);
+    }
+  };
+
   const { weights, votes } = getCandidateFields();
   const aesKey = extractField('Generated AES Key');
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-10">
+      {/* Simulation Table */}
       <div className="overflow-x-auto shadow-md sm:rounded-lg">
         <table className="w-full text-sm text-left text-white bg-gray-900">
           <thead className="text-xs uppercase bg-gray-800 border-b border-gray-700">
@@ -140,12 +164,13 @@ export default function FullResultsTable({ tallyData, numVotes }) {
 
         {decryptedBallots.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left text-white bg-gray-900 shadow-md sm:rounded-lg">
+            <table className="w-full text-sm text-left text-white bg-gray-900 shadow-md sm:rounded-lg mt-4">
               <thead className="text-xs uppercase bg-gray-800 border-b border-gray-700">
                 <tr>
                   <th className="px-6 py-3">BALLOT #</th>
                   <th className="px-6 py-3">PII</th>
-                  <th className="px-6 py-3">DECRYPTED WEIGHT</th>
+                  <th className="px-6 py-3">RAW WEIGHT</th>
+                  <th className="px-6 py-3">DECODED VOTES</th>
                 </tr>
               </thead>
               <tbody>
@@ -153,7 +178,12 @@ export default function FullResultsTable({ tallyData, numVotes }) {
                   <tr key={i} className="border-b border-gray-700 hover:bg-gray-800">
                     <td className="px-6 py-4">{ballot.index}</td>
                     <td className="px-6 py-4">{ballot.pii}</td>
-                    <td className="px-6 py-4">{ballot.weight}</td>
+                    <td className="px-6 py-4">{ballot.rawWeight}</td>
+                    <td className="px-6 py-4">
+                      {ballot.decodedVotes.map((vote, idx) => (
+                        <div key={idx}>Candidate {idx}: {vote} vote{vote !== 1 ? 's' : ''}</div>
+                      ))}
+                    </td>
                   </tr>
                 ))}
               </tbody>
