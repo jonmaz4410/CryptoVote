@@ -11,7 +11,7 @@ app.use(express.json());
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// store simulation inputs globally so decrypt can use them
+
 let lastSimInputs = {
   numCandidates: 0,
   maxVoters: 0,
@@ -26,9 +26,9 @@ app.post('/simulate', (req, res) => {
   console.log('✅ /simulate hit');
   console.log('🟡 Running:', input.replace(/\n/g, '\\n'));
 
-  exec(`echo "${input}" | ./cryptovote`, { cwd: __dirname }, (err, stdout, stderr) => {
+  exec(`echo "${input}" | ./bin/cryptovote`, { cwd: __dirname }, (err, stdout, stderr) => {
     if (err) {
-      console.error('❌ Error executing cryptovote:', err);
+      console.error(' Error executing cryptovote:', err);
       return res.status(500).send({ error: 'Execution failed.' });
     }
     res.send({ output: stdout });
@@ -42,9 +42,9 @@ app.post('/decrypt', (req, res) => {
   console.log('✅ /decrypt hit');
   console.log('🟡 Running:', input.replace(/\n/g, '\\n'));
 
-  exec(`echo "${input}" | ./backend/cryptovote`, { cwd: __dirname }, (err, stdout, stderr) => {
+  exec(`echo "${input}" | ./bin/cryptovote`, { cwd: __dirname }, (err, stdout, stderr) => {
     if (err) {
-      console.error('❌ Error executing cryptovote for decrypt:', err);
+      console.error(' Error executing cryptovote for decrypt:', err);
       return res.status(500).send({ error: 'Decryption failed.' });
     }
 
@@ -55,7 +55,7 @@ app.post('/decrypt', (req, res) => {
 
 const cleanOutput = (start !== -1 && piiLine && weightLine)
   ? [`${lines[start]}`, piiLine, weightLine].join('\n')
-  : '❌ Could not extract ballot decryption info.';
+  : ' Could not extract ballot decryption info.';
 
     res.send({ output: cleanOutput });
   });

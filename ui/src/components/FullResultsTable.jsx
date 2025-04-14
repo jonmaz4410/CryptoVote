@@ -68,7 +68,7 @@ export default function FullResultsTable({ tallyData, numVotes }) {
         const weightBigInt = BigInt(rawWeight);
         decodedVotes = decodeVoteWeight(weightBigInt, M, numCandidates);
       } catch (err) {
-        console.error('❌ Failed decoding vote weight:', rawWeight, err);
+        console.error(' Failed decoding vote weight:', rawWeight, err);
       }
 
       setDecryptedBallots(prev => [
