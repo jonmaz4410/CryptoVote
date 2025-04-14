@@ -5,6 +5,7 @@
 #include <string>
 #include <stdexcept>
 #include <gmpxx.h>
+#include <unistd.h> 
 
 using namespace std;
 using Byte = unsigned char;
@@ -28,9 +29,18 @@ int main() {
     try {
         // --- User Input ---
         cout << "\n--- Paillier+AES Voting Simulation Setup ---" << endl;
-        cout << "Enter the number of candidates: "; cin >> numCandidates; /* Add validation */
-        cout << "Enter the maximum expected total number of voters (k): "; cin >> max_voters; /* Add validation */
-        cout << "Enter the number of votes to simulate for this test run: "; cin >> num_votes; /* Add validation */
+        if (isatty(fileno(stdin))) {
+            // Interactive mode
+            cout << "Enter the number of candidates: ";
+            cin >> numCandidates;
+            cout << "Enter the maximum expected total number of voters (k): ";
+            cin >> max_voters;
+            cout << "Enter the number of votes to simulate for this test run: ";
+            cin >> num_votes;
+        } else {
+            // Piped from backend
+            cin >> numCandidates >> max_voters >> num_votes;
+        }
         cout << "----------------------------------------" << endl;
 
 
