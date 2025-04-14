@@ -51,10 +51,10 @@ int main() {
 
         // --- Simulation & Encryption ---
         cout << "Simulating and encrypting " << num_votes << " votes..." << endl;
-        weights = calcWeights(numCandidates, max_voters); // Call function
+        weights = calcWeights(numCandidates, max_voters);
         allBallots.clear();
         allBallots.reserve(num_votes);
-        actualVoteCounts.assign(numCandidates, 0); // Initialize counts
+        actualVoteCounts.assign(numCandidates, 0);
 
         for (int i = 0; i < num_votes; i++) {
             // Generate simulated PII
