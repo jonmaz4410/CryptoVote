@@ -1,5 +1,5 @@
-#include "paillier.h" // Include the Paillier header
-#include "aes.h"      // Include AES header for encryptAES256
+#include "paillier.h" 
+#include "aes.h"      
 #include <iostream>
 #include <vector>
 #include <string>
