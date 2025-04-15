@@ -89,10 +89,10 @@ export default function FullResultsTable({ tallyData, numVotes }) {
   const aesKey = extractField('Generated AES Key');
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-10">
+    <div className="w-full max-w-8xl mx-auto space-y-10 px-6 md:px-10 lg:px-16">
       {/* Simulation Table */}
       <div className="overflow-x-auto shadow-md sm:rounded-lg">
-        <table className="w-full text-sm text-left text-white bg-gray-900">
+        <table className="w-full text-sm text-center text-white bg-gray-900 ml-10">
           <thead className="text-xs uppercase bg-gray-800 border-b border-gray-700">
             <tr>
               <th className="px-6 py-3">FIELD</th>
@@ -104,11 +104,11 @@ export default function FullResultsTable({ tallyData, numVotes }) {
               [
                 'AES Key',
                 aesKey ? (
-                  <div className="flex items-center space-x-2">
-                    <span>
+                  <div className="flex items-center space-x-px">
+                    <span className="flex-1 text-center font-mono tracking-wider">
                       {showAES ? aesKey : '••••••••••••••••••••••••••••••••'}
-                    </span>
-                    <button
+                    </span >
+                    <button 
                       onClick={() => setShowAES(!showAES)}
                       className="text-blue-400 hover:text-blue-300"
                     >
