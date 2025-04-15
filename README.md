@@ -41,13 +41,43 @@ This project requires a C++ compiler (supporting C++11 or later) and the GMP lib
 
 * The program will then prompt you for the necessary inputs.
 
-## 3. What is PHE and Why Use It for Secure Voting?
+## 3. Running the Fullstack Web App
+###  Project Structure
+
+```
+CryptoVote/
+├── backend/           # Express server + C++ binary
+│   ├── server.js
+│   ├── bin/cryptovote (compiled binary)
+├── ui/                # React frontend
+│   └── src/
+```
+
+### Setup Steps
+
+## 1. Build the C++ Binary
+cd backend
+../main.cpp ../src/paillier.cpp ../src/aes.cpp -o bin/cryptovote -I../include -lgmp -lgmpxx -std=c++11
+
+## 2. Start the Express Backend 
+cd backend
+node server.js
+
+## 3. Start the React Frontend
+
+cd ui
+npm install
+npm run dev
+
+
+
+## 4. What is PHE and Why Use It for Secure Voting?
 
 * **Partially Homomorphic Encryption (PHE):** PHE is a type of encryption that allows specific mathematical operations (like addition or multiplication) to be performed directly on ciphertexts without needing to decrypt them first. The result of the computation, when decrypted, matches the result of the same operation performed on the original plaintexts.
 * **Paillier Cryptosystem:** The Paillier cryptosystem, used in this project, is an example of PHE that is additively homomorphic. This means you can add multiple encrypted values together, and the result is the encryption of the sum of the original values.
 * **Why PHE for Secure Voting:** In voting, privacy and integrity are critical. PHE (specifically Paillier here) allows an authority to sum up all the encrypted votes to get an encrypted total. Only this final encrypted total needs to be decrypted to reveal the election results. Individual votes remain encrypted throughout the tallying process, protecting voter privacy. This prevents anyone tallying the votes from knowing individual choices while still ensuring the final count is accurate.
 
-## 4. PII Encryption with AES
+## 5. PII Encryption with AES
 
 While the Paillier cryptosystem secures the *vote weights* for homomorphic tallying, this project adds another layer of security by encrypting the voter's Personally Identifiable Information (PII) separately using the Advanced Encryption Standard (AES). Specifically, it uses AES-256 in CBC mode.
 
@@ -59,7 +89,7 @@ While the Paillier cryptosystem secures the *vote weights* for homomorphic tally
 
 In this simulation, each `EncryptedBallot` stores both the Paillier-encrypted vote weight and the AES-encrypted PII. A single, randomly generated AES key is used for all PII encryption within a simulation run.
 
-## 5. Code Workflow (`main.cpp`)
+## 6. Code Workflow (`main.cpp`)
 
 The simulation follows these general steps:
 
@@ -77,7 +107,7 @@ The simulation follows these general steps:
 8.  **Results & Verification:** Decodes the decrypted tally (using base-M) to get counts per candidate and compares them against the actual counts recorded during simulation.
 9.  **Optional Individual Decryption:** Prompts the user if they want to decrypt a specific ballot by index, then decrypts and displays both the AES-encrypted PII and the Paillier-encrypted vote weight for that ballot.
 
-## 6. Input Validations
+## 7. Input Validations
 
 The code currently takes the following user inputs in `main.cpp`:
 
