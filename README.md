@@ -57,7 +57,7 @@ CryptoVote/
 
 ## 1. Build the C++ Binary
 cd backend
-../main.cpp ../src/paillier.cpp ../src/aes.cpp -o bin/cryptovote -I../include -lgmp -lgmpxx -std=c++11
+g++ ../main.cpp ../src/paillier.cpp ../src/aes.cpp -o bin/cryptovote -I../include -lgmp -lgmpxx -std=c++11
 
 ## 2. Start the Express Backend 
 cd backend
